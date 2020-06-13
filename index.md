@@ -4,11 +4,13 @@
 
 ### Georgia Tech Projects
 
-[Regression Analysis on NYC Airbnb Data](/images)
+[Galaxy Morphology Classification Using CNN](/Galaxy_Morphology_Classification_Using_CNN.pdf)
 
 ---
-[Vehicle Routing Problem](/pdf/sample_presentation.pdf)
-<img src="images/dummy_thumbnail.jpg?raw=true"/>
+[Regression Analysis on NYC Airbnb Data](/Regression_Analysis_on_NYC_Airbnb_Data.pdf)
+
+---
+[Vehicle Routing Problem](/pdf/Vehicle_Routing_Problem.pdf)
 
 ---
 [Analysis of Factors Affecting Earnings Using Current Population Survey Data from BLS](https://karenaloscocco.github.io)
