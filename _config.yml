@@ -2,4 +2,5 @@ title: Karen Loscocco
 logo: "/images/logo.jpeg?raw=true"
 description: 
 <a href="https://www.linkedin.com/in/karen-loscocco">View My LinkedIn Profile</a>
+baseurl: projects
 theme: jekyll-theme-minimal
