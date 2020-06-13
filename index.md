@@ -14,3 +14,5 @@
 
 ---
 [Analysis of Factors Affecting Earnings Using Current Population Survey Data from BLS](/Analysis_of_Factors_Affecting Earnings_BLS_Data/report.pdf)
+
+---
