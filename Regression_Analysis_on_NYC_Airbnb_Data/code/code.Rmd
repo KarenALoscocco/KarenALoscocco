@@ -1,0 +1,697 @@
+---
+title: "8 Appendix"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# REGRESSION ANALYSIS
+
+### Loading librarys:
+```{r message = FALSE}
+library(readxl)
+library(car)
+library(leaps)
+library(MASS)
+```
+
+### Loading the original data: 
+
+```{r}
+setwd("~/Documents/GitHub/projects/Regression_Analysis_on_NYC_Airbnb_Data/code")
+project_data = read.csv("AB_NYC_2019.csv")
+```
+
+### Omitting null values:
+```{r}
+nrow(project_data)
+project_data = na.omit(project_data)
+nrow(project_data)
+```
+
+### Random sampling: 
+```{r}
+data_sample = project_data[sample(nrow(project_data),
+                                  nrow(project_data)*(5000/nrow(project_data))),]
+```
+
+### We saved off one randome sample of the data in order to be working with the same data set for analysis: 
+```{r}
+setwd("~/Documents/GitHub/projects/Regression_Analysis_on_NYC_Airbnb_Data/code")
+project_data_sample = read_excel("sample_data.xlsx")
+attach(project_data_sample)
+```
+
+### Creating dataframe of numerical data for correlation: 
+```{r}
+df = project_data_sample[c("price","minimum_nights","number_of_reviews","reviews_per_month"
+                           ,"calculated_host_listings_count","availability_365")]
+cor(df)
+```
+
+There was no severe multicollinearity at this point -> highest being .524
+
+### Creation of base model: 
+```{r}
+basemodel = lm(price~minimum_nights+number_of_reviews+reviews_per_month
+               +calculated_host_listings_count+availability_365)
+summary(basemodel)
+```
+
+According to the summary, the significant fields (p-value < 0.01) are number_of_reviews, reviews_per_month, calculated_host_listings_count, availability_365(most significant).
+
+
+### Variance Inflation Factor (VIF) for base model: 
+```{r}
+vif(basemodel)
+```
+
+According the VIF test, there is still no severe multicollinearity among the eight independent variables.
+
+### Choosing the best model from all subsets
+```{r}
+all_model<-regsubsets(price~.,data=df,nbest=2,method = "exhaustive")
+all_sum = summary(all_model)
+Rsq = round(all_sum$rsq*100, digit=1)
+adj_Rsq = round(all_sum$adjr2*100, digit=1)
+Cp = round(all_sum$cp, digit=1)
+SSE = all_sum$rss
+k = as.numeric(rownames(all_sum$which))
+n = all_model$nn
+S = round(sqrt(all_sum$rss/(n-(k+1))), digit=2)
+SSTO = sum((price - mean(price))^2)
+aic = round(2*(k+1)+n*log(SSE/n),digits=2)
+SSE = round(SSE,digits=2)
+cbind(Rsq, adj_Rsq, Cp, S, all_sum$outmat)
+```
+
+The best models with the lowest $C_p$ that is less than or equal to $k+1$, high adjusted $R^2$, and lowest variance: 
+
+5(1): minimum_nights + number_of_reviews + reviews_per_month + calculated_host_listings_count + availability_365
+
+4(1) number_of_reviews + reviews_per_month + calculated_host_listings_count + availability_365
+
+### Creation of the full model: 
+```{r}
+full.lm <- lm(price ~ . , data=df)
+min.lm <- lm(price ~ 1, data=df)
+step_both = step(min.lm, list(upper=full.lm), direction='both')
+```
+
+### The best model has 5 variables:   
+
+```{r}
+bestmodel= lm(price~number_of_reviews+reviews_per_month+calculated_host_listings_count
+              +availability_365 + minimum_nights)
+qqnorm(resid(bestmodel),pch=16,main="Normal Probability Plot of Residuals")
+qqline(resid(bestmodel),col='red',lwd=2)
+
+plot(fitted(bestmodel),resid(bestmodel), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("Fitted Values")),main="Plot of e vs Fitted Values")
+abline(0,0,col="red",lwd=3)
+
+plot(number_of_reviews,resid(bestmodel), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("number of reviews")),main="Plot of e vs number of reviews")
+abline(0,0,col="red",lwd=3)
+
+plot(reviews_per_month,resid(bestmodel), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("reviews per month")),main="reviews per month")
+abline(0,0,col="red",lwd=3)
+```
+
+### Outlier analysis: 
+```{r}
+k = 5
+n = length(price)
+LV_cutoff = 2*(k+1)/n; print(LV_cutoff)
+Hi = hatvalues(bestmodel)
+Hi[Hi>LV_cutoff]
+```
+
+These are the outliers.
+
+### Studentized Deleted Residuals (SDR) 
+```{r}
+Res_SE = summary(bestmodel)$sigma
+di = resid(bestmodel)/(1-Hi)
+SSE = Res_SE^2*(n-(k+1))
+SDR = resid(bestmodel)*sqrt((n-k-2)/(SSE*(1-Hi)-(resid(bestmodel))^2))
+SDR[abs(SDR)>qt(0.975,n-k-2)] #some evidence 
+SDR[abs(SDR)>qt(0.995,n-k-2)] #strong evidence 
+```
+This test outputs a list of data points that show some and strong evidence of being an outlier with respect to its y value. 
+
+
+### Cook’s Distance Measure
+```{r}
+CooksD = cooks.distance(bestmodel)
+CooksD[CooksD>qf(0.5,k+1, n-k-1)] #Influential
+#CooksD[CooksD<qf(0.2,k+1, n-k-1)] #Not Influential
+CooksD[CooksD<qf(0.5,k+1, n-k-1) & CooksD>qf(0.2,k+1, n-k-1)]
+```
+This test outputs a list of data points that show influential/non-influential evidence of being an outlier. 
+
+
+
+
+### Creation of dummy variables (made of room type and all location related variables)
+```{r}
+attach(project_data_sample)
+
+brooklyn_dummy = as.numeric(neighbourhood_group == 'Brooklyn')
+queens_dummy = as.numeric(neighbourhood_group == 'Queens')
+bronx_dummy = as.numeric(neighbourhood_group == 'Bronx')
+staten_dummy = as.numeric(neighbourhood_group == 'Staten Island')
+private_room_dummy = as.numeric(room_type =='Private room')
+shared_room_dummy = as.numeric(room_type == 'Shared room')
+
+```
+
+### Creation of Location/Price Model and Price/Staten Dummy Model: 
+```{r}
+location_price_model = lm(price ~ + brooklyn_dummy + 
+                            queens_dummy + bronx_dummy + staten_dummy)
+
+summary(location_price_model)
+anova(location_price_model)
+
+
+staten_model = lm(price~staten_dummy)
+
+summary(staten_model)
+anova(staten_model)
+```
+
+### Creation of the BASE model that includes dummy variables 
+```{r}
+
+overall = lm(price ~number_of_reviews + minimum_nights + reviews_per_month 
+             + calculated_host_listings_count+ availability_365 + shared_room_dummy 
+             + staten_dummy+ brooklyn_dummy + queens_dummy + bronx_dummy + private_room_dummy)
+
+full.lm = lm(price ~ number_of_reviews + minimum_nights + reviews_per_month 
+             + calculated_host_listings_count +availability_365 + shared_room_dummy 
+             + staten_dummy+ brooklyn_dummy + queens_dummy + bronx_dummy 
+             + private_room_dummy, data = project_data_sample)
+
+
+summary(full.lm)
+```
+
+### Variance Inflation Factor (VIF) for base model: 
+```{r}
+vif(full.lm)
+qqnorm(resid(full.lm),pch=16,main="Normal Probability Plot of Residuals")
+qqline(resid(full.lm),col='red',lwd=2)
+
+plot(fitted(full.lm),resid(full.lm), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("Fitted Values")),main="Plot of e vs Fitted Values")
+abline(0,0,col="red",lwd=3)
+
+plot(number_of_reviews,resid(full.lm), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("number of reviews")),main="Plot of e vs number of reviews")
+abline(0,0,col="red",lwd=3)
+
+plot(reviews_per_month,resid(full.lm), pch=16, col="blue", ylab=bquote(paste("e")), 
+     xlab=bquote(paste("reviews per month")),main="reviews per month")
+abline(0,0,col="red",lwd=3)
+```
+
+### Checking for outliers using Cutoff
+```{r}
+k = 7
+n = length(price)
+LV_cutoff = 2*(k+1)/n; print(LV_cutoff)
+Hi = hatvalues(full.lm)
+Hi[Hi>LV_cutoff]
+```
+These are the outliers.
+
+### Studentized Deleted Residuals (SDR) 
+```{r}
+Res_SE = summary(full.lm)$sigma
+di = resid(full.lm)/(1-Hi)
+SSE = Res_SE^2*(n-(k+1))
+SDR = resid(full.lm)*sqrt((n-k-2)/(SSE*(1-Hi)-(resid(full.lm))^2))
+SDR[abs(SDR)>qt(0.975,n-k-2)] #some evidence 
+```
+```{r}
+SDR[abs(SDR)>qt(0.995,n-k-2)] #strong evidence 
+```
+This test outputs a list of data points that show some and strong evidence of being an outlier with respect to its y value. 
+
+### Cook’s Distance Measure
+```{r}
+CooksD = cooks.distance(full.lm)
+CooksD[CooksD>qf(0.5,k+1, n-k-1)] #Influential
+#CooksD[CooksD<qf(0.2,k+1, n-k-1)] #Not Influential
+CooksD[CooksD<qf(0.5,k+1, n-k-1) & CooksD>qf(0.2,k+1, n-k-1)]
+```
+This test outputs a list of data points that show influential/non-influential evidence of being an outlier.
+
+
+
+### Stepwise selection of variables from BASE model
+```{r}
+min.lm = lm(price ~1, data = project_data_sample)
+
+step_both = step(min.lm, list(upper = full.lm), direction = 'both')
+```
+
+Best model with dummies (location, roomtype) = price ~ private_room_dummy + availability_365 + shared_room_dummy + brooklyn_dummy + bronx_dummy + number_of_reviews + minimum_nights + queens_dummy + staten_dummy
+```{r}    
+newbestmodel= lm(price ~ private_room_dummy + availability_365 + 
+                   shared_room_dummy + brooklyn_dummy + bronx_dummy + 
+                   number_of_reviews + minimum_nights + queens_dummy + 
+                   staten_dummy)
+qqnorm(resid(newbestmodel),pch=16,main="Normal Probability Plot of Residuals")
+qqline(resid(newbestmodel),col='red',lwd=2)
+
+summary(newbestmodel)
+```
+### The above plot is for the best model with dummies
+
+### Checking for outliers using Cutoff
+```{r}
+k = 7
+n = length(price)
+LV_cutoff = 2*(k+1)/n; print(LV_cutoff)
+Hi = hatvalues(newbestmodel)
+Hi[Hi>LV_cutoff]
+```
+These are the outliers.
+
+### Studentized Deleted Residuals (SDR) 
+```{r}
+Res_SE = summary(newbestmodel)$sigma
+di = resid(newbestmodel)/(1-Hi)
+SSE = Res_SE^2*(n-(k+1))
+SDR = resid(newbestmodel)*sqrt((n-k-2)/(SSE*(1-Hi)-(resid(newbestmodel))^2))
+SDR[abs(SDR)>qt(0.975,n-k-2)] #some evidence 
+SDR[abs(SDR)>qt(0.995,n-k-2)] #strong evidence 
+```
+This test outputs a list of data points that show some and strong evidence of being an outlier with respect to its y value. 
+
+### Cook’s Distance Measure
+```{r}
+CooksD = cooks.distance(newbestmodel)
+CooksD[CooksD>qf(0.5,k+1, n-k-1)] #Influential
+#CooksD[CooksD<qf(0.2,k+1, n-k-1)] #Not Influential
+CooksD[CooksD<qf(0.5,k+1, n-k-1) & CooksD>qf(0.2,k+1, n-k-1)]
+```
+This test outputs a list of data points that show influential/non-influential evidence of being an outlier. 
+
+
+# DATA EXPLORATION PLOTS
+
+### Load packages:   
+```{r message = FALSE}
+library(ggmap)
+library(dplyr)
+library("ggcorrplot")
+library(gridExtra)
+#library(ggplot)
+library(plotrix)
+```
+
+### Custom Colors:
+```{r}
+pink = "#f547c1"
+orange = "#f59847"
+yellow = "#f5de47"
+green = "#3dcc64"
+blue = "#4fc7ff"
+customcolors = c(pink,orange,green,blue,yellow)
+```
+
+### Before cutting down the data: 
+```{r message = FALSE}
+airbnb = read.csv("AB_NYC_2019.csv")
+attach(airbnb)
+
+histdata = airbnb[airbnb$price <= 5000,]
+ggplot(histdata, aes(histdata$price, fill = histdata$neighbourhood_group)) + 
+  geom_histogram(binwidth = 25, size = 2) + 
+  scale_fill_manual(values=customcolors) +
+  labs(x = "Price", y = "Number of Data Points", fill="Neighbourhood Group")
+
+#ggsave("Hist_Price_NG_Before Random Sampling.png", dpi=1000)
+
+```
+
+### Data Sample:   
+```{r}
+data_sample_final = read.csv('sample_data.csv')
+data_sample_final = data_sample_final[,c(6:13,15:17)]
+```
+
+### Correlation Matrix:
+```{r}
+corr_data = data_sample_final[,c(1,3:11)]
+corr_data = data.frame(corr_data)
+
+corr <- round(cor(corr_data[,c(2,3,5,6,7,8,9,10)]),2)
+ggcorrplot(corr, p.mat = cor_pmat(corr_data[,c(2,3,5,6,7,8,9,10)]),
+           hc.order = TRUE, type = "lower",
+           color = c(orange, "white", blue),
+           outline.col = "white",
+           lab = TRUE) 
+#ggsave("corr_matrix.png", dpi=1000)
+
+```
+
+### Counts per room type: 
+```{r}
+counts = count(data_sample_final, neighbourhood_group)
+
+ggplot(counts, aes(x = counts$neighbourhood_group, y = counts$n, fill = counts$neighbourhood_group, label = counts$n)) + 
+  geom_bar(stat = "identity") +
+  geom_text(size = 2, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values=customcolors) + 
+  labs(x = "Neighbourhood Group", y = "Number of Data Points", fill="Neighbourhood Group")
+
+#ggsave("num_of_room_type.png", dpi=1000)
+
+```
+
+
+### Histogram of all Prices points: 
+```{r}
+histdata = data_sample_final
+ggplot(histdata, aes(histdata$price, fill = histdata$neighbourhood_group)) + 
+  geom_histogram(binwidth = 25, size = 2) + 
+  scale_fill_manual(values=customcolors) +
+  labs(x = "Price", y = "Number of Data Points", fill="Neighbourhood Group")
+#ggsave("Hist_Price_NG.png", dpi=1000)
+```
+
+
+### Histogram of the 14 points that are greater than 1000
+```{r}
+histdata = data_sample_final[data_sample_final$price >= 1000,]
+ggplot(histdata, aes(histdata$price, fill = histdata$neighbourhood_group)) + 
+  geom_histogram(binwidth = 25, size = 2) + 
+  scale_fill_manual(values=customcolors) +
+  labs(x = "Price", y = "Number of Data Points", fill="Neighbourhood Group")
+#ggsave("Hist_Price_gt_1000_NG.png", dpi=1000)
+```
+
+
+### Histogram excluding the 14 points that are greater than 1000
+```{r}
+histdata = data_sample_final[data_sample_final$price <= 1000,]
+ggplot(histdata, aes(histdata$price, fill = histdata$neighbourhood_group)) + 
+  geom_histogram(binwidth = 25, size = 2) + 
+  scale_fill_manual(values=customcolors) +
+  labs(x = "Price", y = "Number of Data Points", fill="Neighbourhood Group")
+
+#ggsave("Hist_Price_lt_1000_NG.png", dpi=1000)
+```
+
+### Some variables for maps:   
+```{r}
+# lat/long centers
+ALL_centerlong = (min(data_sample_final$longitude) + max(data_sample_final$longitude))/2
+ALL_centerlat = (min(data_sample_final$latitude) + max(data_sample_final$latitude))/2
+
+# neighbourhood group centers
+NG_centerlong = c()
+NG_centerlat = c()
+
+neighbourhood_groups = as.character(unique(data_sample_final$neighbourhood_group))
+
+for (i in 1:length(neighbourhood_groups)) {
+  lat = data_sample_final$latitude[data_sample_final$neighbourhood_group == neighbourhood_groups[i]]
+  long = data_sample_final$longitude[data_sample_final$neighbourhood_group == neighbourhood_groups[i]]
+  NG_centerlong[i] = (min(long) + max(long))/2
+  NG_centerlat[i] = (min(lat) + max(lat))/2
+}
+
+NG_centers = data.frame(neighbourhood_groups, NG_centerlong, NG_centerlat)
+
+#neighbourhood centers
+N_centerlong = c()
+N_centerlat = c()
+
+neighbourhoods = as.character(unique(data_sample_final$neighbourhood))
+
+for (i in 1:length(neighbourhoods)) {
+  lat = data_sample_final$latitude[data_sample_final$neighbourhood == neighbourhoods[i]]
+  long = data_sample_final$longitude[data_sample_final$neighbourhood == neighbourhoods[i]]
+  N_centerlong[i] = (min(long) + max(long))/2
+  N_centerlat[i] = (min(lat) + max(lat))/2
+}
+
+N_centers = data.frame(neighbourhoods, N_centerlong, N_centerlat)
+
+```
+
+
+### Map of Neighbourhoods FULL DATA:
+```{r message=FALSE}
+map = get_map(location = c(ALL_centerlong, ALL_centerlat),  
+              source = "google",
+              zoom = 10, 
+              maptype = "roadmap", 
+              size = c(640, 640), 
+              scale = 2)
+
+print(ggmap(map) 
+      + geom_point(data = airbnb, 
+                   aes(x = airbnb$longitude, 
+                       y = airbnb$latitude, 
+                       colour = factor(airbnb$neighbourhood_group)
+                       ), 
+                   size = 1) 
+      + labs(x = "Longitude", 
+             y = "Latitude",
+             colour="Neighbourhood Group")
+      + scale_color_manual(values=customcolors) 
+      
+)
+#ggsave("map_of_neighbourhoods_FULLDATA.png", dpi=1000)
+
+```
+
+
+### Map of Neibourhoods SAMPLE: 
+```{r message=FALSE}
+map = get_map(location = c(ALL_centerlong, ALL_centerlat),  
+              source = "google",
+              zoom = 10, 
+              maptype = "roadmap", 
+              size = c(640, 640), 
+              scale = 2)
+
+print(ggmap(map) 
+      + geom_point(data = data_sample_final, 
+                   aes(x = data_sample_final$longitude, 
+                       y = data_sample_final$latitude, 
+                       colour = factor(data_sample_final$neighbourhood_group)
+                       ), 
+                   size = 1) 
+      + labs(x = "Longitude", 
+             y = "Latitude",
+             colour="Neighbourhood Group")
+      + scale_color_manual(values=customcolors) 
+      
+)
+#ggsave("map_of_neighbourhoods_SAMPLE.png", dpi=1000)
+```
+
+### Number of Room types: 
+```{r}
+counts = count(data_sample_final, room_type)
+
+ggplot(counts, aes(x = counts$room_type, y = counts$n, fill = counts$room_type, label = counts$n)) + 
+  geom_bar(stat = "identity") +
+  geom_text(size = 2, position = position_stack(vjust = 0.5)) + 
+  labs(x = "Room Type", y = "Number of Data Points", fill="Room Type")
+
+#ggsave("num_of_Room_type.png", dpi=1000)
+```
+
+### Getting Top 10 neighbourhoods: 
+```{r}
+counts = count(data_sample_final, neighbourhood_group, neighbourhood)
+counts[order(counts$neighbourhood_group, counts$neighbourhood, -counts$n),]
+
+brooklyn = counts[counts$neighbourhood_group == 'Brooklyn',]
+manhattan = counts[counts$neighbourhood_group == 'Manhattan',]
+queens = counts[counts$neighbourhood_group == 'Queens',]
+statenIsland = counts[counts$neighbourhood_group == 'Staten Island',]
+bronx = counts[counts$neighbourhood_group == 'Bronx',]
+
+nsi = statenIsland[order(statenIsland$neighbourhood_group, -statenIsland$n),][1:10,]
+nq = queens[order(queens$neighbourhood_group, -queens$n),][1:10,]
+nm = manhattan[order(manhattan$neighbourhood_group, -manhattan$n),][1:10,]
+nbn = brooklyn[order(brooklyn$neighbourhood_group, -brooklyn$n),][1:10,]
+nbx = bronx[order(bronx$neighbourhood_group, -bronx$n),][1:10,]
+
+top10 = rbind(nsi,nq,nm,nbn,nbx)
+```
+
+### Price distribution for top 10 neighbourhoods: 
+```{r}
+histdata = data_sample_final[data_sample_final$neighbourhood == top10$neighbourhood,]
+histdata = histdata[histdata$price <= 1000,]
+
+ggplot(histdata, aes(x=histdata$neighbourhood, y=histdata$price, fill = histdata$neighbourhood_group)) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~histdata$neighbourhood_group) + 
+  scale_fill_manual(values=customcolors) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+### Prices on map:
+```{r}
+data = data_sample_final[data_sample_final$price<=1000,]
+
+map = get_map(location = c(ALL_centerlong, ALL_centerlat),  
+              source = "google",
+              zoom = 10, 
+              maptype = "roadmap", 
+              size = c(640, 640), 
+              scale = 2)
+
+print(ggmap(map) 
+      + geom_point(data = data[data$price<=500,], 
+                   aes(x = data$longitude[data$price<=500], 
+                       y = data$latitude[data$price<=500], 
+                       colour = data$price[data$price<=500]#,
+                       #size = data_sample_final$price
+                       ),
+                   shape = 1, size = 1) 
+      + geom_point(data = data[data$price>500,], 
+                   aes(x = data$longitude[data$price>500], 
+                       y = data$latitude[data$price>500], 
+                       colour = data$price[data$price>500]#,
+                       #size = data_sample_final$price
+                       ),
+                   shape = 1, size = 1) 
+      + scale_colour_distiller(palette = "Spectral")
+      + labs(x = "Longitude", 
+             y = "Latitude",
+             colour="Price")
+)
+#ggsave("map_of_prices.png", dpi=1000)
+```
+
+### Availability on map:
+```{r}
+data = data_sample_final
+map = get_map(location = c(ALL_centerlong, ALL_centerlat),  
+              source = "google",
+              zoom = 10, 
+              maptype = "roadmap", 
+              size = c(640, 640), 
+              scale = 2)
+
+print(ggmap(map) 
+      + geom_point(data = data, 
+                   aes(x = data$longitude, 
+                       y = data$latitude, 
+                       colour = data$availability_365
+                       ),
+                   shape = 1, size = 1) 
+      + scale_colour_distiller(palette = "OrRd", trans = 'reverse')
+      + labs(x = "Longitude", 
+             y = "Latitude",
+             colour="Availability"
+             )
+)
+#ggsave("map_of_availability.png", dpi=1000)
+```
+
+### Room Type on Map: 
+```{r}
+data = data_sample_final
+map = get_map(location = c(ALL_centerlong, ALL_centerlat),  
+              source = "google",
+              zoom = 10, 
+              maptype = "roadmap", 
+              size = c(640, 640), 
+              scale = 2)
+
+print(ggmap(map) 
+      + geom_point(data = data, 
+                   aes(x = data$longitude, 
+                       y = data$latitude, 
+                       colour = data$room_type
+                       ),
+                   shape = 1, size = 1) 
+      #+ scale_colour_distiller(palette = "OrRd", trans = 'reverse')
+      + labs(x = "Longitude", 
+             y = "Latitude",
+             colour="Availability"
+             )
+)
+#ggsave("map_of_roomtype.png", dpi=1000)
+```
+
+### Histogram of Minimum nights: 
+```{r}
+histdata = data_sample_final
+ggplot(histdata, aes(histdata$minimum_nights, fill = histdata$room_type)) + 
+  geom_histogram(binwidth = 25, size = 2) + 
+  labs(x = "Amount of Nights Minimum", y = "Number of Data Points", fill="Room Type")
+
+#ggsave("Hist_MinNights_RoomType.png", dpi=1000)
+```
+
+### Box Plot of Minimum Nights: 
+```{r}
+data = data_sample_final[data_sample_final$minimum_nights <= 10,]
+ggplot(data, aes(x=data$room_type, y=data$minimum_nights, fill=data$room_type)) +
+  geom_boxplot() + 
+  coord_flip() + 
+  labs(x = "Amount of Nights Minimum", y = "Number of Data Points", fill="Room Type")
+
+#ggsave("Box_MinNights_RoomType.png", dpi=1000)
+```
+
+### Price by location broken out by neighbourhood_group:   
+```{r message=FALSE}
+data_cut = data_sample_final[data_sample_final$price<=1000,]
+
+for (i in 1:length(neighbourhood_groups)) {
+  NG = as.character(NG_centers[i,1])
+  data = data_cut[data_cut$neighbourhood_group == NG,]
+  centerlong = (min(data$longitude) + max(data$longitude))/2
+  centerlat = (min(data$latitude) + max(data$latitude))/2
+  
+  map = get_map(location = c(centerlong, centerlat),  
+                source = "google",
+                zoom = 11, 
+                maptype = "roadmap", 
+                size = c(640, 640), 
+                scale = 2)
+  
+  print(ggmap(map) 
+        + geom_point(data = data[data$price<=500,], 
+                   aes(x = data$longitude[data$price<=500], 
+                       y = data$latitude[data$price<=500], 
+                       colour = data$price[data$price<=500]
+                       ),
+                   shape = 1, size = 1) 
+        + geom_point(data = data[data$price>500,], 
+                   aes(x = data$longitude[data$price>500], 
+                       y = data$latitude[data$price>500], 
+                       colour = data$price[data$price>500]
+                       ),
+                   shape = 1, size = 1) 
+       + scale_colour_distiller(palette = "Spectral")
+        + labs(x = "Longitude", 
+               y = "Latitude",
+               colour="Price",
+               title = NG)
+  )
+  
+  print(cat('\n'))
+}
+```
