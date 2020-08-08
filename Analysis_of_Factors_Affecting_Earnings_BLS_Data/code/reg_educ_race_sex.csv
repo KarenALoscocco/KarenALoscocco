@@ -1,0 +1,36 @@
+education_text,race_text,sexs_text,avg_val
+"High School graduates, no college",White,Men,736.55
+Bachelor's degree and higher,White,Men,1326.45
+Bachelor's degree only,White,Men,1223.5
+Advanced degree,White,Men,1542.6
+Less than a High School diploma,Black or African American,Men,454.75
+Less than a High School diploma,White,Women,382.95
+"High School graduates, no college",White,Women,549.3
+Bachelor's degree and higher,White,Women,978.25
+Bachelor's degree only,White,Women,901
+Advanced degree,White,Women,1120.8
+"High School graduates, no college",Black or African American,Men,580.75
+Bachelor's degree and higher,Black or African American,Men,978.1
+Bachelor's degree only,Black or African American,Men,904.55
+Advanced degree,Black or African American,Men,1179.85
+Less than a High School diploma,Black or African American,Women,378.25
+"High School graduates, no college",Black or African American,Women,481.9
+Bachelor's degree and higher,Black or African American,Women,880.8
+Bachelor's degree only,Black or African American,Women,818.1
+Advanced degree,Black or African American,Women,1011.35
+Less than a High School diploma,Asian,Men,535.375
+"High School graduates, no college",Asian,Men,687
+Some college or associate degree,Asian,Men,840.875
+Bachelor's degree and higher,Asian,Men,1577.125
+Bachelor's degree only,Asian,Men,1374.375
+Advanced degree,Asian,Men,1800.5
+Less than a High School diploma,Asian,Women,446.625
+"High School graduates, no college",Asian,Women,568.5
+Some college or associate degree,Asian,Women,703.75
+Bachelor's degree and higher,Asian,Women,1210.625
+Bachelor's degree only,Asian,Women,1091.125
+Advanced degree,Asian,Women,1407.125
+Some college or associate degree,White,Men,861.3
+Some college or associate degree,Black or African American,Men,669.3
+Some college or associate degree,White,Women,641.7
+Some college or associate degree,Black or African American,Women,567.75
